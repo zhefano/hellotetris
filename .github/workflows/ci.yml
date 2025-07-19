@@ -112,17 +112,29 @@ jobs:
       
     - name: Run security scan
       run: |
-        # Check for common security issues
         echo "🔍 Running security checks..."
         
-        # Check for hardcoded secrets
-        if grep -r "password\|secret\|token\|key" . --exclude-dir=.git --exclude-dir=build --exclude=*.md; then
+        # Check for actual hardcoded secrets (more specific patterns)
+        echo "Checking for hardcoded secrets..."
+        if grep -r -i "password.*=.*['\"][^'\"]*['\"]\|secret.*=.*['\"][^'\"]*['\"]\|token.*=.*['\"][^'\"]*['\"]\|api_key.*=.*['\"][^'\"]*['\"]" . --exclude-dir=.git --exclude-dir=build --exclude=*.md --exclude=*.storyboard --exclude=*.plist --exclude=*.sks --exclude=*.xcscheme; then
           echo "⚠️  Potential hardcoded secrets found"
           exit 1
         fi
         
+        # Check for debug/development code in production
+        echo "Checking for debug code..."
+        if grep -r -i "debug.*=.*true\|development.*=.*true\|test.*=.*true" . --exclude-dir=.git --exclude-dir=build --exclude=*.md --exclude=*.storyboard --exclude=*.plist --exclude=*.sks --exclude=*.xcscheme; then
+          echo "⚠️  Debug/development flags found"
+          exit 1
+        fi
+        
         # Check for proper code signing setup
-        echo "✅ Security scan completed"
+        echo "Checking code signing configuration..."
+        if grep -r "CODE_SIGN_IDENTITY.*=.*\"\"" . --exclude-dir=.git --exclude-dir=build --exclude=*.md; then
+          echo "ℹ️  Code signing disabled (expected for CI)"
+        fi
+        
+        echo "✅ Security scan completed successfully"
         
     - name: Upload security report
       uses: actions/upload-artifact@v4

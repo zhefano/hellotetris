@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 77;
+	objectVersion = 60;
 	objects = {
 
 /* Begin PBXContainerItemProxy section */
@@ -170,8 +170,8 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
-				LastSwiftUpdateCheck = 2600;
-				LastUpgradeCheck = 2600;
+				LastSwiftUpdateCheck = 1540;
+				LastUpgradeCheck = 1540;
 				TargetAttributes = {
 					BCEBF7F32E2B06E300DFF723 = {
 						CreatedOnToolsVersion = 26.0;
@@ -195,7 +195,7 @@
 			);
 			mainGroup = BCEBF7EB2E2B06E300DFF723;
 			minimizedProjectReferenceProxies = 1;
-			preferredProjectObjectVersion = 77;
+			preferredProjectObjectVersion = 60;
 			productRefGroup = BCEBF7F52E2B06E400DFF723 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";

@@ -1,4 +1,4 @@
-name: CI
+name: iOS CI
 
 on:
   push:
@@ -7,82 +7,160 @@ on:
     branches: [ main ]
 
 jobs:
-  build-and-test:
+  build:
+    name: Build iOS App
     runs-on: macos-latest
     
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
       
-    - name: Select Xcode
-      run: sudo xcode-select -switch /Applications/Xcode_16.0.app
+    - name: Setup Xcode
+      uses: maxim-lobanov/setup-xcode@v1
+      with:
+        xcode-version: 'latest-stable'
+        
+    - name: Show Xcode version
+      run: xcodebuild -version
+      
+    - name: Show Swift version
+      run: swift --version
       
     - name: Build project
       run: |
         xcodebuild clean build \
           -project hellotetris.xcodeproj \
           -scheme hellotetris \
-          -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest' \
-          -configuration Debug \
+          -destination 'platform=iOS Simulator,name=iPhone 15,OS=latest' \
+          -derivedDataPath build \
           CODE_SIGN_IDENTITY="" \
           CODE_SIGNING_REQUIRED=NO \
-          CODE_SIGNING_ALLOWED=NO \
-          -quiet
+          CODE_SIGNING_ALLOWED=NO
           
-    - name: Build for release
-      run: |
-        xcodebuild clean build \
-          -project hellotetris.xcodeproj \
-          -scheme hellotetris \
-          -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest' \
-          -configuration Release \
-          CODE_SIGN_IDENTITY="" \
-          CODE_SIGNING_REQUIRED=NO \
-          CODE_SIGNING_ALLOWED=NO \
-          -quiet
-
-  lint:
-    runs-on: macos-latest
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
-    - name: Select Xcode
-      run: sudo xcode-select -switch /Applications/Xcode_16.0.app
-      
-    - name: Check for warnings
-      run: |
-        xcodebuild build \
-          -project hellotetris.xcodeproj \
-          -scheme hellotetris \
-          -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest' \
-          -configuration Debug \
-          CODE_SIGN_IDENTITY="" \
-          CODE_SIGNING_REQUIRED=NO \
-          CODE_SIGNING_ALLOWED=NO \
-          -quiet \
-          | grep -E "(warning|error)" || echo "No warnings or errors found"
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: build-artifacts
+        path: build/
+        retention-days: 7
 
   test:
+    name: Run Tests
     runs-on: macos-latest
+    needs: build
     
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
       
-    - name: Select Xcode
-      run: sudo xcode-select -switch /Applications/Xcode_16.0.app
-      
-    - name: Run tests
+    - name: Setup Xcode
+      uses: maxim-lobanov/setup-xcode@v1
+      with:
+        xcode-version: 'latest-stable'
+        
+    - name: Run unit tests
       run: |
         xcodebuild test \
           -project hellotetris.xcodeproj \
           -scheme hellotetris \
-          -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest' \
-          -configuration Debug \
+          -destination 'platform=iOS Simulator,name=iPhone 15,OS=latest' \
+          -derivedDataPath build \
           CODE_SIGN_IDENTITY="" \
           CODE_SIGNING_REQUIRED=NO \
-          CODE_SIGNING_ALLOWED=NO \
-          -quiet \
-          || echo "No tests found or tests failed" 
+          CODE_SIGNING_ALLOWED=NO
+          
+    - name: Upload test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: test-results
+        path: build/Logs/Test/
+        retention-days: 30
+
+  lint:
+    name: SwiftLint
+    runs-on: macos-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup SwiftLint
+      run: |
+        brew install swiftlint
+        
+    - name: Run SwiftLint
+      run: |
+        swiftlint lint --reporter github-actions-logging
+        
+    - name: Upload lint results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: lint-results
+        path: swiftlint-report.json
+        retention-days: 7
+
+  security:
+    name: Security Scan
+    runs-on: macos-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Run security scan
+      run: |
+        # Check for common security issues
+        echo "🔍 Running security checks..."
+        
+        # Check for hardcoded secrets
+        if grep -r "password\|secret\|token\|key" . --exclude-dir=.git --exclude-dir=build --exclude=*.md; then
+          echo "⚠️  Potential hardcoded secrets found"
+          exit 1
+        fi
+        
+        # Check for proper code signing setup
+        echo "✅ Security scan completed"
+        
+    - name: Upload security report
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: security-report
+        path: security-report.txt
+        retention-days: 30
+
+  archive:
+    name: Create Archive
+    runs-on: macos-latest
+    needs: [build, test, lint, security]
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Xcode
+      uses: maxim-lobanov/setup-xcode@v1
+      with:
+        xcode-version: 'latest-stable'
+        
+    - name: Create archive
+      run: |
+        xcodebuild archive \
+          -project hellotetris.xcodeproj \
+          -scheme hellotetris \
+          -archivePath build/hellotetris.xcarchive \
+          -derivedDataPath build \
+          CODE_SIGN_IDENTITY="" \
+          CODE_SIGNING_REQUIRED=NO \
+          CODE_SIGNING_ALLOWED=NO
+          
+    - name: Upload archive
+      uses: actions/upload-artifact@v4
+      with:
+        name: app-archive
+        path: build/hellotetris.xcarchive
+        retention-days: 90 

@@ -163,3 +163,143 @@ This project is for educational purposes. Tetris is a trademark of The Tetris Co
 ---
 
 **Enjoy playing Hello Tetris!** 🎮✨ 
+
+## Issue Labels & Tracking
+
+### Issue Labels
+
+We use the following labels to categorize issues and pull requests:
+
+#### Type Labels
+- `bug` - Something isn't working
+- `enhancement` - New feature or request
+- `documentation` - Improvements or additions to documentation
+- `good first issue` - Good for newcomers
+- `help wanted` - Extra attention is needed
+
+#### Game Labels
+- `gameplay` - Game mechanics and rules
+- `controls` - Input handling and user interaction
+- `ui-improvement` - User interface enhancements
+- `visual-effects` - Graphics, animations, particles
+- `sound` - Audio and music features
+
+#### Platform Labels
+- `ios26` - iOS 26 specific features
+- `swift62` - Swift 6.2 language features
+- `haptic-feedback` - Haptic engine and feedback
+- `performance` - Performance optimizations
+- `accessibility` - Accessibility improvements
+
+#### Technical Labels
+- `architecture` - Code structure and design
+- `concurrency` - Async/await and actor usage
+- `testing` - Unit tests and integration tests
+- `build` - Build system and dependencies
+- `deployment` - App Store and distribution
+
+#### Priority Labels
+- `high-priority` - Critical issues requiring immediate attention
+- `medium-priority` - Important but not urgent
+- `low-priority` - Nice to have features
+
+#### Previous Issues Resolved
+- `actor-isolation` - Swift 6.2 actor isolation warnings (RESOLVED)
+- `missing-types` - Missing type definitions (RESOLVED)
+- `concurrency-issues` - Async/await usage problems (RESOLVED)
+- `ui-integration` - SpriteKit scene connection issues (RESOLVED)
+- `build-failures` - Xcode build errors (RESOLVED)
+
+### Issue Templates
+
+#### 🐛 Bug Report Template
+```markdown
+## Bug Description
+Brief description of the issue
+
+## Steps to Reproduce
+1. Step one
+2. Step two
+3. Step three
+
+## Expected Behavior
+What should happen
+
+## Actual Behavior
+What actually happens
+
+## Environment
+- iOS Version: [e.g., 26.0]
+- Device: [e.g., iPhone 16]
+- Xcode Version: [e.g., 16.0]
+
+## Additional Context
+Any other relevant information
+```
+
+#### ✨ Feature Request Template
+```markdown
+## Feature Description
+Brief description of the requested feature
+
+## Problem Statement
+What problem does this feature solve?
+
+## Proposed Solution
+How should this feature work?
+
+## Alternative Solutions
+Any other approaches considered?
+
+## Additional Context
+Screenshots, mockups, or other relevant information
+```
+
+### 🎯 Current Development Focus
+
+#### 🚀 **In Progress**
+- [ ] Hold piece functionality
+- [ ] Next piece preview
+- [ ] High score tracking
+- [ ] Sound effects integration
+
+#### 🔮 **Planned Features**
+- [ ] Multiple difficulty levels
+- [ ] Multiplayer support
+- [ ] Apple Intelligence integration
+- [ ] Advanced particle effects
+- [ ] Custom themes and skins
+
+#### 🐛 **Known Issues**
+- Minor Swift 6.2 actor isolation warnings (non-blocking)
+- Game could benefit from performance optimizations
+- Hold piece functionality not yet implemented
+
+### 📊 Issue Statistics
+
+- **Total Issues**: 0 open, 0 closed
+- **Bug Reports**: 0
+- **Feature Requests**: 0
+- **Enhancements**: 0
+
+### Recently Resolved Issues
+
+The following issues were identified and resolved during development:
+
+#### Build and Compilation Issues
+- **Actor isolation errors**: Removed conflicting `@MainActor` annotations causing build failures
+- **Missing type definitions**: Properly defined `TetriminoBlock`, `GameUpdateResult`, and `PiecePosition` structs
+- **Build failures**: Fixed missing imports and dependency issues
+
+#### Game Logic Issues
+- **Incomplete game logic**: Implemented full piece movement, spawning, and game loop
+- **Concurrency issues**: Fixed async/await usage in the game engine
+- **UI integration**: Properly connected SpriteKit scene with game logic
+
+#### Technical Improvements
+- **Swift 6.2 features**: Implemented raw identifiers (SE-0451) and enhanced string interpolation (SE-0477)
+- **Actor-based architecture**: Thread-safe game state management with enhanced concurrency
+- **iOS 26 integration**: Modern glass morphism UI components and haptic feedback
+- **Performance optimizations**: Efficient rendering and update loops
+
+--- 

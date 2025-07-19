@@ -9,6 +9,7 @@ import Foundation
 import SpriteKit
 import SwiftUI
 
+@MainActor
 class GameBoard {
     let rows: Int
     let columns: Int

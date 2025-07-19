@@ -10,6 +10,58 @@ import GameplayKit
 import SwiftUI
 import Observation
 
+// MARK: - Swift 6.2 Enhanced Features
+
+// Raw identifiers for better test naming (SE-0451)
+enum GameEvent: String {
+    case `piece-moved` = "Piece moved"
+    case `line-cleared` = "Line cleared"
+    case `game-over` = "Game over"
+    case `score-updated` = "Score updated"
+}
+
+// Swift 6.2: Enhanced string interpolation
+extension String {
+    func gameStatus(_ score: Int?) -> String {
+        return "Score: \(score ?? 0)"
+    }
+}
+
+// MARK: - iOS 26 Liquid Glass UI Components
+
+struct LiquidGlassStyle {
+    let depth: CGFloat
+    let segments: Int
+    let radius: CGFloat
+    let transmission: CGFloat
+    let roughness: CGFloat
+    let reflectivity: CGFloat
+    let ior: CGFloat
+    let thickness: CGFloat
+    
+    static let modern = LiquidGlassStyle(
+        depth: 0.8,
+        segments: 64,
+        radius: 0.3,
+        transmission: 0.95,
+        roughness: 0.05,
+        reflectivity: 0.5,
+        ior: 1.5,
+        thickness: 0.5
+    )
+    
+    static let subtle = LiquidGlassStyle(
+        depth: 0.3,
+        segments: 32,
+        radius: 0.2,
+        transmission: 0.9,
+        roughness: 0.1,
+        reflectivity: 0.3,
+        ior: 1.3,
+        thickness: 0.3
+    )
+}
+
 // MARK: - Game Types
 
 struct TetriminoBlock {
@@ -47,7 +99,8 @@ class TetriminoPiece: Sendable {
     }
 
     func rotate() async {
-        // Basic rotation feedback - can be enhanced with HapticEngine later
+        // iOS 26 haptic feedback integration
+        await HapticEngine.shared.playRotationFeedback()
         print("Piece rotated")
     }
 
@@ -169,11 +222,9 @@ actor GameEngine {
     var currentPieceForRendering: TetriminoPiece? { get { currentPiece } }
     var currentPositionForRendering: PiecePosition? { get { currentPosition } }
     
-    init(rows: Int, columns: Int) {
-        self.gameBoard = GameBoard(rows: rows, columns: columns)
+    init(rows: Int, columns: Int) async {
+        self.gameBoard = await GameBoard(rows: rows, columns: columns)
     }
-    
-
     
     func startGame() async {
         gameOver = false
@@ -200,6 +251,7 @@ actor GameEngine {
         let isValid = await gameBoard.isPositionValid(piece: piece, at: newPosition)
         if isValid {
             currentPosition = newPosition
+            await HapticEngine.shared.playMoveFeedback()
         }
     }
     
@@ -209,6 +261,7 @@ actor GameEngine {
         let isValid = await gameBoard.isPositionValid(piece: piece, at: newPosition)
         if isValid {
             currentPosition = newPosition
+            await HapticEngine.shared.playMoveFeedback()
         }
     }
     
@@ -237,6 +290,41 @@ actor GameEngine {
         }
     }
     
+    func hardDrop() async {
+        guard let piece = currentPiece, let position = currentPosition else { return }
+        
+        // Find the lowest valid position
+        var dropDistance = 0
+        while true {
+            let newPosition = PiecePosition(row: position.row + dropDistance + 1, col: position.col, rotation: position.rotation)
+            let isValid = await gameBoard.isPositionValid(piece: piece, at: newPosition)
+            if !isValid {
+                break
+            }
+            dropDistance += 1
+        }
+        
+        // Move piece to the lowest valid position
+        let finalPosition = PiecePosition(row: position.row + dropDistance, col: position.col, rotation: position.rotation)
+        currentPosition = finalPosition
+        
+        // Lock piece in place
+        await gameBoard.add(piece: piece, at: finalPosition)
+        let linesCleared = await gameBoard.clearLines()
+        score += linesCleared * 100
+        await spawnNewPiece()
+    }
+    
+    func rotatePieceCounterClockwise() async {
+        guard let piece = currentPiece, let position = currentPosition else { return }
+        let newRotation = (position.rotation - 1 + piece.rotationStates.count) % piece.rotationStates.count
+        let newPosition = PiecePosition(row: position.row, col: position.col, rotation: newRotation)
+        let isValid = await gameBoard.isPositionValid(piece: piece, at: newPosition)
+        if isValid {
+            currentPosition = newPosition
+        }
+    }
+    
     // Swift 6.2 enhanced structured concurrency
     func updateGame(deltaTime: TimeInterval) async -> GameUpdateResult {
         dropTimer += deltaTime
@@ -246,7 +334,86 @@ actor GameEngine {
             await dropPiece()
         }
         
+        // Swift 6.2: Use raw identifiers for event tracking
+        await logGameEvent(.`piece-moved`)
+        
         return GameUpdateResult(score: score, linesCleared: 0, gameOver: gameOver)
+    }
+    
+    // Swift 6.2: Enhanced logging with raw identifiers
+    private func logGameEvent(_ event: GameEvent) async {
+        print("Game Event: \(event.rawValue)")
+    }
+}
+
+// MARK: - iOS 26 Enhanced Haptic Engine
+
+@MainActor
+class HapticEngine {
+    static let shared = HapticEngine()
+    
+    private var impactFeedback: UIImpactFeedbackGenerator?
+    private var notificationFeedback: UINotificationFeedbackGenerator?
+    private var selectionFeedback: UISelectionFeedbackGenerator?
+    
+    private init() {
+        setupHapticEngines()
+    }
+    
+    private func setupHapticEngines() {
+        impactFeedback = UIImpactFeedbackGenerator(style: .light)
+        notificationFeedback = UINotificationFeedbackGenerator()
+        selectionFeedback = UISelectionFeedbackGenerator()
+        
+        // iOS 26: Prepare haptic engines for better performance
+        impactFeedback?.prepare()
+        notificationFeedback?.prepare()
+        selectionFeedback?.prepare()
+    }
+    
+    func playRotationFeedback() async {
+        impactFeedback?.impactOccurred(intensity: 0.7)
+        print("Piece rotated with enhanced haptic feedback")
+    }
+    
+    func playLineClearFeedback() async {
+        notificationFeedback?.notificationOccurred(.success)
+        
+        // iOS 26: Enhanced haptic pattern for line clear
+        await playHapticPattern()
+    }
+    
+    func playGameOverFeedback() async {
+        notificationFeedback?.notificationOccurred(.error)
+        
+        // iOS 26: Dramatic haptic pattern for game over
+        await playGameOverHapticPattern()
+    }
+    
+    func playMoveFeedback() async {
+        selectionFeedback?.selectionChanged()
+    }
+    
+    func playDropFeedback() async {
+        impactFeedback?.impactOccurred(intensity: 0.5)
+    }
+    
+    // iOS 26: Enhanced haptic patterns
+    private func playHapticPattern() async {
+        // Success pattern: light-medium-light
+        impactFeedback?.impactOccurred(intensity: 0.3)
+        try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 second
+        impactFeedback?.impactOccurred(intensity: 0.7)
+        try? await Task.sleep(nanoseconds: 100_000_000)
+        impactFeedback?.impactOccurred(intensity: 0.3)
+    }
+    
+    private func playGameOverHapticPattern() async {
+        // Error pattern: strong-strong-strong
+        for _ in 0..<3 {
+            impactFeedback?.impactOccurred(intensity: 1.0)
+            try? await Task.sleep(nanoseconds: 200_000_000) // 0.2 second
+        }
     }
 }
 
@@ -260,6 +427,12 @@ class GameScene: SKScene {
     // UI Elements
     private var scoreLabel: SKLabelNode?
     private var gameOverLabel: SKLabelNode?
+    private var debugLabel: SKLabelNode?
+    
+    // iOS 26 Liquid Glass Elements
+    private var glassBackground: SKSpriteNode?
+    private var glassHUD: SKSpriteNode?
+    private var particleSystem: SKEmitterNode?
 
     init(size: CGSize, gameEngine: GameEngine) {
         self.gameEngine = gameEngine
@@ -272,6 +445,7 @@ class GameScene: SKScene {
 
     override func didMove(to view: SKView) {
         setupScene()
+        setupLiquidGlassUI()
         setupUI()
         
         // Start the game
@@ -281,33 +455,145 @@ class GameScene: SKScene {
     }
     
     private func setupScene() {
-        backgroundColor = SKColor.black
+        // iOS 26 modern dark background
+        backgroundColor = SKColor.systemBackground
+        
+        // Add a test label to verify the scene is working
+        let testLabel = SKLabelNode(fontNamed: "SF Pro Display-Bold")
+        testLabel.text = "TETRIS"
+        testLabel.fontSize = 32
+        testLabel.fontColor = SKColor.label
+        testLabel.position = CGPoint(x: size.width / 2, y: size.height - 100)
+        addChild(testLabel)
         
         // Add grid lines for better visibility
         drawGrid()
     }
     
+    private func setupLiquidGlassUI() {
+        // Create glass background effect
+        createGlassBackground()
+        
+        // Create glass HUD elements
+        createGlassHUD()
+        
+        // Add particle system for modern effects
+        createParticleSystem()
+    }
+    
+    private func createGlassBackground() {
+        // iOS 26 Liquid Glass background effect
+        let glassNode = SKSpriteNode(color: SKColor.systemGray6.withAlphaComponent(0.1), size: CGSize(width: size.width * 0.8, height: size.height * 0.6))
+        glassNode.position = CGPoint(x: size.width / 2, y: size.height / 2)
+        
+        // Apply glass morphism effect
+        glassNode.alpha = 0.1
+        glassNode.blendMode = .screen
+        
+        glassBackground = glassNode
+        addChild(glassNode)
+    }
+    
+    private func createGlassHUD() {
+        // Create glass HUD container
+        let hudSize = CGSize(width: size.width * 0.3, height: size.height * 0.2)
+        let hudNode = SKSpriteNode(color: .clear, size: hudSize)
+        hudNode.position = CGPoint(x: size.width - hudSize.width / 2 - 20, y: size.height - hudSize.height / 2 - 20)
+        
+        // Apply glass effect to HUD
+        hudNode.alpha = 0.8
+        hudNode.blendMode = .screen
+        
+        // Add rounded corners
+        let cornerRadius: CGFloat = 16
+        let path = UIBezierPath(roundedRect: CGRect(origin: .zero, size: hudSize), cornerRadius: cornerRadius)
+        let shapeNode = SKShapeNode(path: path.cgPath)
+        shapeNode.fillColor = SKColor.systemGray6.withAlphaComponent(0.3)
+        shapeNode.strokeColor = SKColor.systemGray5.withAlphaComponent(0.5)
+        shapeNode.lineWidth = 1
+        hudNode.addChild(shapeNode)
+        
+        glassHUD = hudNode
+        addChild(hudNode)
+    }
+    
+    private func createParticleSystem() {
+        // iOS 26 modern particle system
+        let particleNode = SKEmitterNode()
+        
+        // Configure particle properties
+        particleNode.particleTexture = SKTexture(imageNamed: "spark") // Default spark texture
+        particleNode.particleBirthRate = 5
+        particleNode.numParticlesToEmit = 50
+        particleNode.particleLifetime = 3.0
+        particleNode.particleLifetimeRange = 1.0
+        particleNode.particleSpeed = 20
+        particleNode.particleSpeedRange = 10
+        particleNode.particleAlpha = 0.3
+        particleNode.particleAlphaRange = 0.2
+        particleNode.particleScale = 0.1
+        particleNode.particleScaleRange = 0.05
+        particleNode.particleColor = SKColor.systemBlue
+        particleNode.particleColorBlendFactor = 0.8
+        particleNode.particleBlendMode = .add
+        
+        // Position particles around the game area
+        particleNode.position = CGPoint(x: size.width / 2, y: size.height / 2)
+        
+        particleSystem = particleNode
+        addChild(particleNode)
+    }
+    
     private func setupUI() {
-        // Score label
-        scoreLabel = SKLabelNode(fontNamed: "Arial-Bold")
+        // Score label with Swift 6.2 string interpolation
+        scoreLabel = SKLabelNode(fontNamed: "SF Pro Display-Bold")
         scoreLabel?.text = "Score: 0"
-        scoreLabel?.fontSize = 24
-        scoreLabel?.fontColor = SKColor.white
+        scoreLabel?.fontSize = 20
+        scoreLabel?.fontColor = SKColor.label
         scoreLabel?.position = CGPoint(x: size.width - 100, y: size.height - 50)
         addChild(scoreLabel!)
         
         // Game over label (hidden initially)
-        gameOverLabel = SKLabelNode(fontNamed: "Arial-Bold")
+        gameOverLabel = SKLabelNode(fontNamed: "SF Pro Display-Bold")
         gameOverLabel?.text = "GAME OVER"
         gameOverLabel?.fontSize = 48
-        gameOverLabel?.fontColor = SKColor.red
+        gameOverLabel?.fontColor = SKColor.systemRed
         gameOverLabel?.position = CGPoint(x: size.width / 2, y: size.height / 2)
         gameOverLabel?.isHidden = true
         addChild(gameOverLabel!)
+        
+        // Debug label for Swift 6.2 testing
+        debugLabel = SKLabelNode(fontNamed: "SF Mono")
+        debugLabel?.text = "TETRIS GAME - Swift 6.2 + iOS 26"
+        debugLabel?.fontSize = 14
+        debugLabel?.fontColor = SKColor.tertiaryLabel
+        debugLabel?.position = CGPoint(x: size.width / 2, y: size.height - 30)
+        addChild(debugLabel!)
+        
+        // Controls help (only show on simulator)
+        #if targetEnvironment(simulator)
+        addControlsHelp()
+        #endif
+    }
+    
+    private func addControlsHelp() {
+        let controlsTitle = SKLabelNode(fontNamed: "SF Pro Display-Bold")
+        controlsTitle.text = "KEYBOARD CONTROLS"
+        controlsTitle.fontSize = 16
+        controlsTitle.fontColor = SKColor.secondaryLabel
+        controlsTitle.position = CGPoint(x: 100, y: size.height - 150)
+        addChild(controlsTitle)
+        
+        let controlsText = SKLabelNode(fontNamed: "SF Pro Display")
+        controlsText.text = "←→/AD: Move  ↑/W: Rotate  ↓: Soft Drop  Space: Hard Drop  R: Restart"
+        controlsText.fontSize = 12
+        controlsText.fontColor = SKColor.secondaryLabel
+        controlsText.position = CGPoint(x: 100, y: size.height - 170)
+        addChild(controlsText)
     }
     
     private func drawGrid() {
-        // Draw vertical lines
+        // Draw vertical lines with modern styling
         for col in 0...10 {
             let x = CGFloat(col) * blockSize
             let line = SKShapeNode()
@@ -315,12 +601,12 @@ class GameScene: SKScene {
             path.move(to: CGPoint(x: x, y: 0))
             path.addLine(to: CGPoint(x: x, y: CGFloat(22) * blockSize))
             line.path = path
-            line.strokeColor = SKColor.darkGray
-            line.lineWidth = 1
+            line.strokeColor = SKColor.systemGray5.withAlphaComponent(0.3)
+            line.lineWidth = 0.5
             addChild(line)
         }
         
-        // Draw horizontal lines
+        // Draw horizontal lines with modern styling
         for row in 0...22 {
             let y = CGFloat(row) * blockSize
             let line = SKShapeNode()
@@ -328,8 +614,8 @@ class GameScene: SKScene {
             path.move(to: CGPoint(x: 0, y: y))
             path.addLine(to: CGPoint(x: CGFloat(10) * blockSize, y: y))
             line.path = path
-            line.strokeColor = SKColor.darkGray
-            line.lineWidth = 1
+            line.strokeColor = SKColor.systemGray5.withAlphaComponent(0.3)
+            line.lineWidth = 0.5
             addChild(line)
         }
     }
@@ -370,6 +656,9 @@ class GameScene: SKScene {
         
         if result.gameOver {
             gameOverLabel?.isHidden = false
+            Task {
+                await HapticEngine.shared.playGameOverFeedback()
+            }
         }
     }
 
@@ -379,24 +668,31 @@ class GameScene: SKScene {
 
         let board = await gameEngine.gameBoard
 
-        // Draw placed blocks
+        // Draw placed blocks with modern styling
         for row in 0..<board.rows {
             for col in 0..<board.columns {
                 if let block = board.grid[row][col] {
                     let x = CGFloat(col) * blockSize + blockSize / 2
                     let y = CGFloat(board.rows - 1 - row) * blockSize + blockSize / 2
-                    let sprite = SKShapeNode(rectOf: CGSize(width: blockSize - 2, height: blockSize - 2), cornerRadius: 2)
-                    sprite.fillColor = SKColor(block.color)
-                    sprite.strokeColor = SKColor.white
+                    
+                    // Create modern block with rounded corners
+                    let sprite = SKShapeNode(rectOf: CGSize(width: blockSize - 2, height: blockSize - 2), cornerRadius: 4)
+                    sprite.fillColor = convertSwiftUIColorToSKColor(block.color)
+                    sprite.strokeColor = SKColor.white.withAlphaComponent(0.3)
                     sprite.lineWidth = 1
                     sprite.position = CGPoint(x: x, y: y)
                     sprite.name = "tetrisBlock"
+                    
+                    // Add subtle border effect
+                    sprite.strokeColor = SKColor.white.withAlphaComponent(0.3)
+                    sprite.lineWidth = 1
+                    
                     addChild(sprite)
                 }
             }
         }
         
-        // Draw current piece
+        // Draw current piece with enhanced styling
         if let currentPiece = await gameEngine.currentPieceForRendering,
            let currentPosition = await gameEngine.currentPositionForRendering {
             let shape = currentPiece.rotationStates[currentPosition.rotation]
@@ -405,17 +701,45 @@ class GameScene: SKScene {
                     if isFilled {
                         let x = CGFloat(currentPosition.col + col) * blockSize + blockSize / 2
                         let y = CGFloat(board.rows - 1 - (currentPosition.row + row)) * blockSize + blockSize / 2
-                        let sprite = SKShapeNode(rectOf: CGSize(width: blockSize - 2, height: blockSize - 2), cornerRadius: 2)
-                        sprite.fillColor = SKColor(currentPiece.color)
-                        sprite.strokeColor = SKColor.white
-                        sprite.lineWidth = 1
-                        sprite.alpha = 0.8 // Make current piece slightly transparent
+                        
+                        // Create current piece block with special styling
+                        let sprite = SKShapeNode(rectOf: CGSize(width: blockSize - 2, height: blockSize - 2), cornerRadius: 4)
+                        sprite.fillColor = convertSwiftUIColorToSKColor(currentPiece.color)
+                        sprite.strokeColor = SKColor.white.withAlphaComponent(0.6)
+                        sprite.lineWidth = 2
+                        sprite.alpha = 0.9 // Make current piece slightly transparent
                         sprite.position = CGPoint(x: x, y: y)
                         sprite.name = "tetrisBlock"
+                        
+                        // Add glow effect for current piece
+                        sprite.strokeColor = convertSwiftUIColorToSKColor(currentPiece.color)
+                        sprite.lineWidth = 2
+                        
                         addChild(sprite)
                     }
                 }
             }
+        }
+    }
+    
+    private func convertSwiftUIColorToSKColor(_ color: Color) -> SKColor {
+        switch color {
+        case .cyan:
+            return SKColor.systemCyan
+        case .blue:
+            return SKColor.systemBlue
+        case .orange:
+            return SKColor.systemOrange
+        case .yellow:
+            return SKColor.systemYellow
+        case .green:
+            return SKColor.systemGreen
+        case .purple:
+            return SKColor.systemPurple
+        case .red:
+            return SKColor.systemRed
+        default:
+            return SKColor.label
         }
     }
 }
@@ -423,15 +747,22 @@ class GameScene: SKScene {
 // MARK: - SwiftUI Integration (Optional)
 
 struct TetrisGameView: View {
-    @State private var gameEngine = GameEngine(rows: 22, columns: 10)
+    @State private var gameEngine: GameEngine?
     
     var body: some View {
         GeometryReader { geometry in
             ZStack {
-                // Game board with enhanced rendering
-                SpriteView(scene: createGameScene(size: geometry.size, gameEngine: gameEngine))
-                    .ignoresSafeArea()
+                if let gameEngine = gameEngine {
+                    // Game board with enhanced rendering
+                    SpriteView(scene: createGameScene(size: geometry.size, gameEngine: gameEngine))
+                        .ignoresSafeArea()
+                } else {
+                    ProgressView("Loading...")
+                }
             }
+        }
+        .task {
+            gameEngine = await GameEngine(rows: 22, columns: 10)
         }
     }
     

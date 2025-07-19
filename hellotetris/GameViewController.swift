@@ -13,20 +13,22 @@ class GameViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         
-        let gameEngine = GameEngine(rows: 22, columns: 10)
-        let scene = GameScene(size: view.bounds.size, gameEngine: gameEngine)
-        scene.scaleMode = .resizeFill
-        
-        if let view = self.view as? SKView {
-            view.presentScene(scene)
+        Task {
+            let gameEngine = await GameEngine(rows: 22, columns: 10)
+            let scene = GameScene(size: view.bounds.size, gameEngine: gameEngine)
+            scene.scaleMode = .resizeFill
             
-            view.ignoresSiblingOrder = true
-            
-            view.showsFPS = true
-            view.showsNodeCount = true
-            
-            // Enable keyboard input
-            view.becomeFirstResponder()
+            if let view = self.view as? SKView {
+                view.presentScene(scene)
+                
+                view.ignoresSiblingOrder = true
+                
+                view.showsFPS = true
+                view.showsNodeCount = true
+                
+                // Enable keyboard input
+                view.becomeFirstResponder()
+            }
         }
     }
     
@@ -44,16 +46,31 @@ class GameViewController: UIViewController {
         
         if let skView = view as? SKView, let scene = skView.scene as? GameScene {
             switch press.key?.keyCode {
-            case .keyboardLeftArrow:
+            // Movement Controls
+            case .keyboardLeftArrow, .keyboardA:
                 Task { await scene.gameEngine.movePieceLeft() }
-            case .keyboardRightArrow:
+            case .keyboardRightArrow, .keyboardD:
                 Task { await scene.gameEngine.movePieceRight() }
+                
+            // Rotation Controls
+            case .keyboardUpArrow, .keyboardW, .keyboardX, .keyboardK:
+                Task { await scene.gameEngine.rotatePiece() }
+            case .keyboardZ, .keyboardL:
+                Task { await scene.gameEngine.rotatePieceCounterClockwise() }
+                
+            // Drop Controls
             case .keyboardDownArrow:
                 Task { await scene.gameEngine.dropPiece() }
-            case .keyboardUpArrow, .keyboardSpacebar:
-                Task { await scene.gameEngine.rotatePiece() }
+            case .keyboardSpacebar:
+                Task { await scene.gameEngine.hardDrop() }
+                
+            // Game Controls
             case .keyboardR:
                 Task { await scene.gameEngine.startGame() }
+            case .keyboardC:
+                // TODO: Implement hold piece functionality
+                print("Hold piece - Not implemented yet")
+                
             default:
                 super.pressesBegan(presses, with: event)
             }

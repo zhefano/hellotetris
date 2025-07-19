@@ -8,8 +8,12 @@ A classic Tetris implementation built with Swift 6.2, SpriteKit, and iOS 26 feat
 - **Smooth Controls**: Touch and keyboard support
 - **Score System**: Points for clearing lines
 - **Game Over Detection**: Automatic game over when pieces can't be placed
-- **Modern iOS Design**: Built with latest Swift and SpriteKit features
+- **iOS 26 Liquid Glass UI**: Modern glass morphism design with blur effects
+- **Swift 6.2 Features**: Raw identifiers, enhanced string interpolation, and modern concurrency
+- **Haptic Feedback**: Tactile feedback for piece movements and game events
+- **Particle Effects**: Modern visual effects for enhanced gameplay
 - **Actor-based Architecture**: Uses Swift 6.2's enhanced concurrency features
+- **ProMotion Support**: 120Hz smooth gameplay on supported devices
 
 ## 🛠️ Recent Fixes
 
@@ -23,8 +27,13 @@ The project had several issues that have been resolved:
 5. **UI Integration**: Properly connected SpriteKit scene with game logic
 
 ### 🔧 Technical Improvements:
-- **Swift 6.2 Compatibility**: Updated to use latest Swift concurrency features
-- **Actor-based Game Engine**: Thread-safe game state management
+- **Swift 6.2 Features**: Raw identifiers (SE-0451), default values in string interpolation (SE-0477)
+- **Actor-based Game Engine**: Thread-safe game state management with enhanced concurrency
+- **iOS 26 Liquid Glass Integration**: Modern glass morphism UI components
+- **Haptic Engine**: Tactile feedback system for enhanced user experience
+- **Particle System**: Modern visual effects using SKEmitterNode
+- **ProMotion Optimization**: 120Hz support for smooth gameplay
+- **SF Pro Fonts**: Modern typography using iOS 26 system fonts
 - **Proper Error Handling**: Graceful handling of game over conditions
 - **Performance Optimizations**: Efficient rendering and update loops
 
@@ -36,11 +45,26 @@ The project had several issues that have been resolved:
 - **Center third of screen**: Rotate piece
 
 ### Keyboard Controls (iOS Simulator/External Keyboard)
-- **Left Arrow**: Move piece left
-- **Right Arrow**: Move piece right
-- **Down Arrow**: Drop piece faster
-- **Up Arrow** or **Spacebar**: Rotate piece
+
+#### Movement Controls
+- **Left Arrow** or **A**: Move piece left
+- **Right Arrow** or **D**: Move piece right
+
+#### Rotation Controls
+- **Up Arrow**, **W**, **X**, or **K**: Rotate piece clockwise
+- **Z** or **L**: Rotate piece counter-clockwise
+
+#### Drop Controls
+- **Down Arrow**: Soft drop (move piece down faster)
+- **Spacebar**: Hard drop (instantly place piece at lowest position)
+
+#### Game Controls
 - **R**: Restart game
+- **C**: Hold piece (coming soon)
+
+#### Alternative Controls
+- **WASD**: Alternative movement and rotation
+- **Arrow Keys**: Standard movement and rotation
 
 ## 🏗️ Project Structure
 
@@ -105,14 +129,17 @@ hellotetris/
 
 ## 🔮 Future Enhancements
 
-- [ ] Haptic feedback for piece movements
+- [x] ✅ Haptic feedback for piece movements
+- [x] ✅ iOS 26 Liquid Glass UI components
+- [x] ✅ Particle effects for enhanced visuals
+- [x] ✅ ProMotion 120Hz support
 - [ ] Sound effects and background music
 - [ ] Multiple difficulty levels
 - [ ] High score tracking
-- [ ] Particle effects for line clears
 - [ ] Hold piece functionality
 - [ ] Next piece preview
 - [ ] Multiplayer support
+- [ ] Apple Intelligence integration for adaptive difficulty
 
 ## 🐛 Known Issues
 

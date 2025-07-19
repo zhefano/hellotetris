@@ -1,0 +1,78 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-test:
+    runs-on: macos-latest
+    
+    strategy:
+      matrix:
+        xcode: ['16.0']
+        destination: ['platform=iOS Simulator,name=iPhone 16,OS=latest']
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Select Xcode
+      run: sudo xcode-select -switch /Applications/Xcode_${{ matrix.xcode }}.app
+      
+    - name: Build project
+      run: |
+        xcodebuild clean build \
+          -project hellotetris.xcodeproj \
+          -scheme hellotetris \
+          -destination '${{ matrix.destination }}' \
+          -configuration Debug \
+          CODE_SIGN_IDENTITY="" \
+          CODE_SIGNING_REQUIRED=NO \
+          CODE_SIGNING_ALLOWED=NO
+          
+    - name: Run tests
+      run: |
+        xcodebuild test \
+          -project hellotetris.xcodeproj \
+          -scheme hellotetris \
+          -destination '${{ matrix.destination }}' \
+          -configuration Debug \
+          CODE_SIGN_IDENTITY="" \
+          CODE_SIGNING_REQUIRED=NO \
+          CODE_SIGNING_ALLOWED=NO
+          
+    - name: Build for release
+      run: |
+        xcodebuild clean build \
+          -project hellotetris.xcodeproj \
+          -scheme hellotetris \
+          -destination '${{ matrix.destination }}' \
+          -configuration Release \
+          CODE_SIGN_IDENTITY="" \
+          CODE_SIGNING_REQUIRED=NO \
+          CODE_SIGNING_ALLOWED=NO
+
+  lint:
+    runs-on: macos-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Select Xcode
+      run: sudo xcode-select -switch /Applications/Xcode_16.0.app
+      
+    - name: Check for warnings
+      run: |
+        xcodebuild build \
+          -project hellotetris.xcodeproj \
+          -scheme hellotetris \
+          -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest' \
+          -configuration Debug \
+          CODE_SIGN_IDENTITY="" \
+          CODE_SIGNING_REQUIRED=NO \
+          CODE_SIGNING_ALLOWED=NO \
+          | grep -E "(warning|error)" || true 

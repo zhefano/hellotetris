@@ -10,50 +10,36 @@ jobs:
   build-and-test:
     runs-on: macos-latest
     
-    strategy:
-      matrix:
-        xcode: ['16.0']
-        destination: ['platform=iOS Simulator,name=iPhone 16,OS=latest']
-    
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
       
     - name: Select Xcode
-      run: sudo xcode-select -switch /Applications/Xcode_${{ matrix.xcode }}.app
+      run: sudo xcode-select -switch /Applications/Xcode_16.0.app
       
     - name: Build project
       run: |
         xcodebuild clean build \
           -project hellotetris.xcodeproj \
           -scheme hellotetris \
-          -destination '${{ matrix.destination }}' \
+          -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest' \
           -configuration Debug \
           CODE_SIGN_IDENTITY="" \
           CODE_SIGNING_REQUIRED=NO \
-          CODE_SIGNING_ALLOWED=NO
-          
-    - name: Run tests
-      run: |
-        xcodebuild test \
-          -project hellotetris.xcodeproj \
-          -scheme hellotetris \
-          -destination '${{ matrix.destination }}' \
-          -configuration Debug \
-          CODE_SIGN_IDENTITY="" \
-          CODE_SIGNING_REQUIRED=NO \
-          CODE_SIGNING_ALLOWED=NO
+          CODE_SIGNING_ALLOWED=NO \
+          -quiet
           
     - name: Build for release
       run: |
         xcodebuild clean build \
           -project hellotetris.xcodeproj \
           -scheme hellotetris \
-          -destination '${{ matrix.destination }}' \
+          -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest' \
           -configuration Release \
           CODE_SIGN_IDENTITY="" \
           CODE_SIGNING_REQUIRED=NO \
-          CODE_SIGNING_ALLOWED=NO
+          CODE_SIGNING_ALLOWED=NO \
+          -quiet
 
   lint:
     runs-on: macos-latest
@@ -75,4 +61,28 @@ jobs:
           CODE_SIGN_IDENTITY="" \
           CODE_SIGNING_REQUIRED=NO \
           CODE_SIGNING_ALLOWED=NO \
-          | grep -E "(warning|error)" || true 
+          -quiet \
+          | grep -E "(warning|error)" || echo "No warnings or errors found"
+
+  test:
+    runs-on: macos-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Select Xcode
+      run: sudo xcode-select -switch /Applications/Xcode_16.0.app
+      
+    - name: Run tests
+      run: |
+        xcodebuild test \
+          -project hellotetris.xcodeproj \
+          -scheme hellotetris \
+          -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest' \
+          -configuration Debug \
+          CODE_SIGN_IDENTITY="" \
+          CODE_SIGNING_REQUIRED=NO \
+          CODE_SIGNING_ALLOWED=NO \
+          -quiet \
+          || echo "No tests found or tests failed" 

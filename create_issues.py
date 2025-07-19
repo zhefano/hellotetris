@@ -9,6 +9,7 @@ import json
 import re
 import os
 import sys
+import getpass
 
 # GitHub API configuration
 GITHUB_TOKEN = os.getenv('GITHUB_TOKEN')
@@ -94,10 +95,10 @@ def create_issue_body(issue):
     
     return '\n\n'.join(body_parts)
 
-def create_github_issue(issue_data):
+def create_github_issue(issue_data, token):
     """Create issue on GitHub"""
     headers = {
-        'Authorization': f'token {GITHUB_TOKEN}',
+        'Authorization': f'token {token}',
         'Accept': 'application/vnd.github.v3+json',
         'Content-Type': 'application/json'
     }
@@ -108,23 +109,46 @@ def create_github_issue(issue_data):
         'labels': issue_data.get('labels', [])
     }
     
-    response = requests.post(f'{API_BASE}/issues', headers=headers, json=payload)
-    
-    if response.status_code == 201:
-        issue_url = response.json()['html_url']
-        print(f"✅ Created issue: {issue_data['title']} - {issue_url}")
-        return True
-    else:
-        print(f"❌ Failed to create issue: {issue_data['title']}")
-        print(f"Status: {response.status_code}")
-        print(f"Response: {response.text}")
+    try:
+        response = requests.post(f'{API_BASE}/issues', headers=headers, json=payload, timeout=30)
+        
+        if response.status_code == 201:
+            issue_url = response.json()['html_url']
+            print(f"✅ Created issue: {issue_data['title']} - {issue_url}")
+            return True
+        else:
+            print(f"❌ Failed to create issue: {issue_data['title']}")
+            print(f"Status: {response.status_code}")
+            if response.status_code == 401:
+                print("Authentication failed. Please check your GitHub token.")
+            elif response.status_code == 403:
+                print("Permission denied. Please check your token has 'repo' permissions.")
+            else:
+                print(f"Response: {response.text}")
+            return False
+    except requests.exceptions.RequestException as e:
+        print(f"❌ Network error creating issue: {issue_data['title']}")
+        print(f"Error: {e}")
         return False
 
 def main():
-    if not GITHUB_TOKEN:
-        print("❌ Error: GITHUB_TOKEN environment variable not set")
-        print("Please set your GitHub Personal Access Token:")
-        print("export GITHUB_TOKEN=your_token_here")
+    # Get token securely
+    token = GITHUB_TOKEN
+    if not token:
+        print("🔐 GitHub Token Required")
+        print("=======================")
+        print("For security, please enter your GitHub Personal Access Token.")
+        print("The token will NOT be saved or logged.")
+        print("")
+        token = getpass.getpass("Enter your GitHub token: ")
+    
+    if not token:
+        print("❌ No token provided. Exiting.")
+        sys.exit(1)
+    
+    # Validate token format (basic check)
+    if len(token) < 20:
+        print("❌ Token appears to be too short. Please check your GitHub Personal Access Token.")
         sys.exit(1)
     
     if not os.path.exists('ISSUES.md'):
@@ -139,10 +163,13 @@ def main():
     success_count = 0
     for i, issue in enumerate(issues, 1):
         print(f"\n🔄 Creating issue {i}/{len(issues)}: {issue['title']}")
-        if create_github_issue(issue):
+        if create_github_issue(issue, token):
             success_count += 1
     
     print(f"\n🎉 Successfully created {success_count}/{len(issues)} issues!")
+    
+    # Clear token from memory
+    token = None
 
 if __name__ == '__main__':
     main() 

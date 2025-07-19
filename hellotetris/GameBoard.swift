@@ -5,8 +5,6 @@
 //  Created by Noel Blom on 7/19/25.
 //
 
-import Foundation
-import SpriteKit
 import SwiftUI
 
 @MainActor

@@ -6,6 +6,8 @@
 //
 
 import XCTest
+import SwiftUI
+import SpriteKit
 @testable import hellotetris
 
 final class hellotetrisTests: XCTestCase {
@@ -18,68 +20,134 @@ final class hellotetrisTests: XCTestCase {
         // Put teardown code here. This method is called after the invocation of each test method in the class.
     }
 
+    // MARK: - Game Logic Tests
+    
     func testGameBoardInitialization() async throws {
-        // Test GameBoard initialization
         let gameBoard = await GameBoard(rows: 22, columns: 10)
         
-        XCTAssertEqual(gameBoard.rows, 22)
-        XCTAssertEqual(gameBoard.columns, 10)
-        XCTAssertEqual(gameBoard.grid.count, 22)
-        XCTAssertEqual(gameBoard.grid[0].count, 10)
+        await MainActor.run {
+            XCTAssertEqual(gameBoard.rows, 22)
+            XCTAssertEqual(gameBoard.columns, 10)
+            XCTAssertEqual(gameBoard.grid.count, 22)
+            XCTAssertEqual(gameBoard.grid[0].count, 10)
+            
+            // Verify grid is empty initially
+            for row in gameBoard.grid {
+                for cell in row {
+                    XCTAssertNil(cell, "Initial grid should be empty")
+                }
+            }
+        }
     }
     
-    func testTetriminoPieceCreation() throws {
-        // Test TetriminoPiece creation
-        let shape = [[true, true], [true, true]]
-        let color = Color.blue
-        let rotationStates = [[[true, true], [true, true]]]
+    func testGameBoardPiecePlacement() async throws {
+        let gameBoard = await GameBoard(rows: 22, columns: 10)
+        let piece = await TetriminoPiece.allTypes[0] // I-piece
+        let position = PiecePosition(row: 0, col: 0, rotation: 0)
         
-        let piece = TetriminoPiece(shape: shape, color: color, rotationStates: rotationStates)
+        await gameBoard.add(piece: piece, at: position)
         
-        XCTAssertEqual(piece.shape.count, 2)
-        XCTAssertEqual(piece.shape[0].count, 2)
-        XCTAssertEqual(piece.rotationStates.count, 1)
+        await MainActor.run {
+            // Check that blocks were placed correctly
+            XCTAssertNotNil(gameBoard.grid[0][0])
+            XCTAssertNotNil(gameBoard.grid[0][1])
+            XCTAssertNotNil(gameBoard.grid[0][2])
+            XCTAssertNotNil(gameBoard.grid[0][3])
+        }
     }
     
-    func testPiecePosition() throws {
-        // Test PiecePosition struct
-        let position = PiecePosition(row: 5, col: 3, rotation: 1)
+    func testGameBoardLineClear() async throws {
+        let gameBoard = await GameBoard(rows: 22, columns: 10)
         
-        XCTAssertEqual(position.row, 5)
-        XCTAssertEqual(position.col, 3)
-        XCTAssertEqual(position.rotation, 1)
+        await MainActor.run {
+            // Fill bottom row completely
+            for col in 0..<10 {
+                gameBoard.grid[21][col] = TetriminoBlock(color: .red)
+            }
+        }
+        
+        let linesCleared = await gameBoard.clearLines()
+        
+        await MainActor.run {
+            XCTAssertEqual(linesCleared, 1, "Should clear exactly one line")
+            
+            // Bottom row should be empty after clearing
+            for col in 0..<10 {
+                XCTAssertNil(gameBoard.grid[21][col], "Cleared line should be empty")
+            }
+        }
     }
     
-    func testGameUpdateResult() throws {
-        // Test GameUpdateResult struct
-        let result = GameUpdateResult(score: 100, linesCleared: 2, gameOver: false)
+    func testGameBoardCollisionDetection() async throws {
+        let gameBoard = await GameBoard(rows: 22, columns: 10)
+        let piece = TetriminoPiece.allTypes[0] // I-piece
         
-        XCTAssertEqual(result.score, 100)
-        XCTAssertEqual(result.linesCleared, 2)
-        XCTAssertFalse(result.gameOver)
-    }
-    
-    func testTetriminoBlock() throws {
-        // Test TetriminoBlock struct
-        let block = TetriminoBlock(color: .red)
+        // Test valid position
+        let validPosition = PiecePosition(row: 0, col: 3, rotation: 0)
+        let isValidEmpty = await gameBoard.isPositionValid(piece: piece, at: validPosition)
+        XCTAssertTrue(isValidEmpty, "Position should be valid on empty board")
         
-        XCTAssertEqual(block.color, .red)
+        // Place piece and test collision
+        await gameBoard.add(piece: piece, at: validPosition)
+        let isValidOccupied = await gameBoard.isPositionValid(piece: piece, at: validPosition)
+        XCTAssertFalse(isValidOccupied, "Position should be invalid when occupied")
+        
+        // Test boundary collision
+        let outOfBoundsPosition = PiecePosition(row: 0, col: 8, rotation: 0) // I-piece is 4 wide
+        let isValidOutOfBounds = await gameBoard.isPositionValid(piece: piece, at: outOfBoundsPosition)
+        XCTAssertFalse(isValidOutOfBounds, "Position should be invalid when out of bounds")
     }
     
     func testGameEngineInitialization() async throws {
-        // Test GameEngine initialization
         let gameEngine = await GameEngine(rows: 22, columns: 10)
         
-        // Verify the game engine was created successfully
-        XCTAssertNotNil(gameEngine)
+        // Verify engine was created with correct board
+        let board = await gameEngine.gameBoard
+        await MainActor.run {
+            XCTAssertEqual(board.rows, 22)
+            XCTAssertEqual(board.columns, 10)
+        }
     }
     
-    func testPerformanceExample() throws {
-        // Performance test
+    func testGameEngineScoring() async throws {
+        let gameEngine = await GameEngine(rows: 22, columns: 10)
+        await gameEngine.startGame()
+        
+        // Simulate line clearing by directly calling internal logic
+        let board = await gameEngine.gameBoard
+        await MainActor.run {
+            // Fill bottom row
+            for col in 0..<10 {
+                board.grid[21][col] = TetriminoBlock(color: .red)
+            }
+        }
+        
+        let linesCleared = await board.clearLines()
+        XCTAssertEqual(linesCleared, 1, "Should clear one line")
+    }
+    
+    // MARK: - Performance Tests
+    
+    func testGameBoardPerformance() throws {
         measure {
-            // Measure the time of creating a game board
             Task {
                 let _ = await GameBoard(rows: 22, columns: 10)
+            }
+        }
+    }
+    
+    func testPieceValidationPerformance() async throws {
+        let gameBoard = await GameBoard(rows: 22, columns: 10)
+        let piece = await TetriminoPiece.allTypes[0]
+        
+        measure {
+            Task {
+                for row in 0..<20 {
+                    for col in 0..<8 {
+                        let position = PiecePosition(row: row, col: col, rotation: 0)
+                        let _ = await gameBoard.isPositionValid(piece: piece, at: position)
+                    }
+                }
             }
         }
     }

@@ -23,8 +23,10 @@ class GameViewController: UIViewController {
                 
                 view.ignoresSiblingOrder = true
                 
+                #if DEBUG
                 view.showsFPS = true
                 view.showsNodeCount = true
+                #endif
                 
                 // Enable keyboard input
                 view.becomeFirstResponder()
@@ -60,7 +62,7 @@ class GameViewController: UIViewController {
                 
             // Drop Controls
             case .keyboardDownArrow:
-                Task { await scene.gameEngine.dropPiece() }
+                Task { await scene.gameEngine.softDrop() }
             case .keyboardSpacebar:
                 Task { await scene.gameEngine.hardDrop() }
                 
@@ -68,8 +70,7 @@ class GameViewController: UIViewController {
             case .keyboardR:
                 Task { await scene.gameEngine.startGame() }
             case .keyboardC:
-                // TODO: Implement hold piece functionality
-                print("Hold piece - Not implemented yet")
+                Task { await scene.gameEngine.holdCurrentPiece() }
                 
             default:
                 super.pressesBegan(presses, with: event)

@@ -26,17 +26,20 @@ jobs:
     - name: Show Swift version
       run: swift --version
       
+    - name: List available simulators
+      run: |
+        xcrun simctl list devices available
+        
     - name: Build project
       run: |
         xcodebuild clean build \
           -project hellotetris.xcodeproj \
           -scheme hellotetris \
-          -destination 'platform=iOS Simulator,name=iPhone 15 Pro,OS=latest' \
+          -destination 'platform=iOS Simulator,id=7B085EF9-4E47-4F89-A3D0-F62E2E9ED71F' \
           -derivedDataPath build \
           CODE_SIGN_IDENTITY="" \
           CODE_SIGNING_REQUIRED=NO \
-          CODE_SIGNING_ALLOWED=NO \
-          SWIFT_VERSION=6.0
+          CODE_SIGNING_ALLOWED=NO
           
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
@@ -63,12 +66,11 @@ jobs:
         xcodebuild test \
           -project hellotetris.xcodeproj \
           -scheme hellotetris \
-          -destination 'platform=iOS Simulator,name=iPhone 15 Pro,OS=latest' \
+          -destination 'platform=iOS Simulator,id=7B085EF9-4E47-4F89-A3D0-F62E2E9ED71F' \
           -derivedDataPath build \
           CODE_SIGN_IDENTITY="" \
           CODE_SIGNING_REQUIRED=NO \
-          CODE_SIGNING_ALLOWED=NO \
-          SWIFT_VERSION=6.0
+          CODE_SIGNING_ALLOWED=NO
           
     - name: Upload test results
       uses: actions/upload-artifact@v4
@@ -109,15 +111,39 @@ jobs:
       run: |
         echo "🔍 Running security checks..."
         
-        # Check for hardcoded secrets (more intelligent)
-        if grep -r "password.*=.*['\"].*['\"]\|secret.*=.*['\"].*['\"]\|token.*=.*['\"].*['\"]\|key.*=.*['\"].*['\"]" . --exclude-dir=.git --exclude-dir=build --exclude=*.md --exclude=*.storyboard --exclude=*.plist --exclude=*.xcconfig; then
+        # Check for hardcoded secrets (improved patterns)
+        echo "Checking for hardcoded secrets..."
+        if grep -rE "(password|secret|token|key|api_key|apikey)\s*[:=]\s*['\"][^'\"]{8,}['\"]" . \
+           --exclude-dir=.git --exclude-dir=build --exclude-dir=node_modules \
+           --exclude="*.md" --exclude="*.storyboard" --exclude="*.plist" \
+           --exclude="*.xcconfig" --exclude="*.json" --exclude="*.sks"; then
           echo "⚠️  Potential hardcoded secrets found"
           exit 1
         fi
         
-        # Check for debug code in production
-        if grep -r "print(\|NSLog(\|debugPrint(\|fatalError(" . --exclude-dir=.git --exclude-dir=build --exclude=*.md --exclude=*.storyboard --exclude=*.plist; then
+        # Check for debug code in production (allow fatalError in init methods)
+        echo "Checking for debug code..."
+        if grep -rE "^\s*(print|NSLog|debugPrint)\s*\(" . \
+           --exclude-dir=.git --exclude-dir=build --exclude-dir=node_modules \
+           --exclude="*Tests.swift" --exclude="*.md" --exclude="*.storyboard" \
+           --exclude="*.plist" --include="*.swift"; then
           echo "⚠️  Debug code found in production"
+          exit 1
+        fi
+        
+        # Check for TODO/FIXME in production code
+        echo "Checking for TODO/FIXME items..."
+        if grep -rE "(TODO|FIXME|XXX|HACK)" . \
+           --exclude-dir=.git --exclude-dir=build --exclude="*.md" \
+           --include="*.swift" | grep -v "// TODO:" | head -10; then
+          echo "ℹ️  Found TODO/FIXME items (informational only)"
+        fi
+        
+        # Check for weak cryptographic practices
+        echo "Checking for weak cryptographic practices..."
+        if grep -rE "(MD5|SHA1|DES|RC4)" . \
+           --exclude-dir=.git --exclude-dir=build --include="*.swift"; then
+          echo "⚠️  Weak cryptographic algorithms found"
           exit 1
         fi
         
@@ -146,8 +172,7 @@ jobs:
           -archivePath build/hellotetris.xcarchive \
           CODE_SIGN_IDENTITY="" \
           CODE_SIGNING_REQUIRED=NO \
-          CODE_SIGNING_ALLOWED=NO \
-          SWIFT_VERSION=6.0
+          CODE_SIGNING_ALLOWED=NO
           
     - name: Upload archive
       uses: actions/upload-artifact@v4

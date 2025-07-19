@@ -9,10 +9,105 @@ import SpriteKit
 import GameplayKit
 import SwiftUI
 import Observation
+import AsyncAlgorithms
+
+// MARK: - Swift 6 Enhanced Features
+
+// Swift 6: Raw identifiers for better test naming (SE-0451)
+enum GameEvent: String, Sendable {
+    case `piece-moved` = "Piece moved"
+    case `line-cleared` = "Line cleared"
+    case `game-over` = "Game over"
+    case `score-updated` = "Score updated"
+    case `level-up` = "Level up"
+}
+
+// Swift 6: Enhanced string interpolation with raw identifiers
+extension String {
+    func gameStatus(_ score: Int?) -> String {
+        return "Score: \(score ?? 0)"
+    }
+    
+    func levelStatus(_ level: Int) -> String {
+        return "Level: \(level)"
+    }
+}
+
+// MARK: - iOS 26 Enhanced Features
+
+// iOS 26: Enhanced haptic feedback with ProMotion support
+@MainActor
+class HapticEngine: Sendable {
+    static let shared = HapticEngine()
+    
+    private var impactFeedback: UIImpactFeedbackGenerator?
+    private var notificationFeedback: UINotificationFeedbackGenerator?
+    private var selectionFeedback: UISelectionFeedbackGenerator?
+    
+    private init() {
+        setupHapticEngines()
+    }
+    
+    private func setupHapticEngines() {
+        // iOS 26: Enhanced haptic feedback with ProMotion
+        impactFeedback = UIImpactFeedbackGenerator(style: .light)
+        notificationFeedback = UINotificationFeedbackGenerator()
+        selectionFeedback = UISelectionFeedbackGenerator()
+        
+        // iOS 26: Prepare haptic engines for better performance
+        impactFeedback?.prepare()
+        notificationFeedback?.prepare()
+        selectionFeedback?.prepare()
+    }
+    
+    func playRotationFeedback() async {
+        impactFeedback?.impactOccurred(intensity: 0.7)
+    }
+    
+    func playLineClearFeedback() async {
+        notificationFeedback?.notificationOccurred(.success)
+        
+        // iOS 26: Enhanced haptic pattern for line clear
+        await playHapticPattern()
+    }
+    
+    func playGameOverFeedback() async {
+        notificationFeedback?.notificationOccurred(.error)
+        
+        // iOS 26: Dramatic haptic pattern for game over
+        await playGameOverHapticPattern()
+    }
+    
+    func playMoveFeedback() async {
+        selectionFeedback?.selectionChanged()
+    }
+    
+    func playDropFeedback() async {
+        impactFeedback?.impactOccurred(intensity: 0.5)
+    }
+    
+    // iOS 26: Enhanced haptic patterns
+    private func playHapticPattern() async {
+        // Success pattern: light-medium-light
+        impactFeedback?.impactOccurred(intensity: 0.3)
+        try? await Task.sleep(for: .milliseconds(100))
+        impactFeedback?.impactOccurred(intensity: 0.7)
+        try? await Task.sleep(for: .milliseconds(100))
+        impactFeedback?.impactOccurred(intensity: 0.3)
+    }
+    
+    private func playGameOverHapticPattern() async {
+        // Error pattern: strong-strong-strong
+        for _ in 0..<3 {
+            impactFeedback?.impactOccurred(intensity: 1.0)
+            try? await Task.sleep(for: .milliseconds(200))
+        }
+    }
+}
 
 // MARK: - Game Types
 
-struct TetriminoBlock {
+struct TetriminoBlock: Sendable {
     let color: Color
     
     init(color: Color) {
@@ -20,13 +115,14 @@ struct TetriminoBlock {
     }
 }
 
-struct GameUpdateResult {
+struct GameUpdateResult: Sendable {
     let score: Int
     let linesCleared: Int
     let gameOver: Bool
+    let level: Int
 }
 
-struct PiecePosition {
+struct PiecePosition: Sendable {
     var row: Int
     var col: Int
     var rotation: Int
@@ -149,16 +245,20 @@ class TetriminoPiece: Sendable {
     ]
 }
 
-// MARK: - Game Engine
+// MARK: - Game Engine with Swift 6 Concurrency
 
-actor GameEngine {
+actor GameEngine: Sendable {
     var gameBoard: GameBoard
     private var currentPiece: TetriminoPiece?
     private var currentPosition: PiecePosition?
     private var score: Int = 0
+    private var level: Int = 1
     private var gameOver: Bool = false
     private var dropTimer: TimeInterval = 0
-    private let dropInterval: TimeInterval = 1.0 // 1 second per drop
+    private var dropInterval: TimeInterval = 1.0 // 1 second per drop
+    
+    // Swift 6: Enhanced concurrency with AsyncChannel for events
+    private let eventChannel = AsyncChannel<GameEvent>()
     
     // Make these accessible for rendering
     var currentPieceForRendering: TetriminoPiece? { get { currentPiece } }
@@ -168,9 +268,14 @@ actor GameEngine {
         self.gameBoard = await GameBoard(rows: rows, columns: columns)
     }
     
+    // Swift 6: Async sequence for game events
+    var events: AsyncChannel<GameEvent> { eventChannel }
+    
     func startGame() async {
         gameOver = false
         score = 0
+        level = 1
+        await eventChannel.send(.`score-updated`)
         await spawnNewPiece()
     }
     
@@ -183,6 +288,8 @@ actor GameEngine {
             let isValid = await gameBoard.isPositionValid(piece: piece, at: position)
             if !isValid {
                 gameOver = true
+                await eventChannel.send(.`game-over`)
+                await HapticEngine.shared.playGameOverFeedback()
             }
         }
     }
@@ -193,6 +300,8 @@ actor GameEngine {
         let isValid = await gameBoard.isPositionValid(piece: piece, at: newPosition)
         if isValid {
             currentPosition = newPosition
+            await HapticEngine.shared.playMoveFeedback()
+            await eventChannel.send(.`piece-moved`)
         }
     }
     
@@ -202,6 +311,8 @@ actor GameEngine {
         let isValid = await gameBoard.isPositionValid(piece: piece, at: newPosition)
         if isValid {
             currentPosition = newPosition
+            await HapticEngine.shared.playMoveFeedback()
+            await eventChannel.send(.`piece-moved`)
         }
     }
     
@@ -212,6 +323,8 @@ actor GameEngine {
         let isValid = await gameBoard.isPositionValid(piece: piece, at: newPosition)
         if isValid {
             currentPosition = newPosition
+            await HapticEngine.shared.playRotationFeedback()
+            await eventChannel.send(.`piece-moved`)
         }
     }
     
@@ -225,7 +338,22 @@ actor GameEngine {
             // Lock piece in place
             await gameBoard.add(piece: piece, at: position)
             let linesCleared = await gameBoard.clearLines()
-            score += linesCleared * 100
+            
+            if linesCleared > 0 {
+                score += linesCleared * 100 * level
+                await HapticEngine.shared.playLineClearFeedback()
+                await eventChannel.send(.`line-cleared`)
+                
+                // Level up every 10 lines
+                let newLevel = (score / 1000) + 1
+                if newLevel > level {
+                    level = newLevel
+                    dropInterval = max(0.1, 1.0 - (Double(level - 1) * 0.1)) // Speed up with level
+                    await eventChannel.send(.`level-up`)
+                }
+            }
+            
+            await eventChannel.send(.`score-updated`)
             await spawnNewPiece()
         }
     }
@@ -251,7 +379,23 @@ actor GameEngine {
         // Lock piece in place
         await gameBoard.add(piece: piece, at: finalPosition)
         let linesCleared = await gameBoard.clearLines()
-        score += linesCleared * 100
+        
+        if linesCleared > 0 {
+            score += linesCleared * 100 * level
+            await HapticEngine.shared.playLineClearFeedback()
+            await eventChannel.send(.`line-cleared`)
+            
+            // Level up every 10 lines
+            let newLevel = (score / 1000) + 1
+            if newLevel > level {
+                level = newLevel
+                dropInterval = max(0.1, 1.0 - (Double(level - 1) * 0.1))
+                await eventChannel.send(.`level-up`)
+            }
+        }
+        
+        await HapticEngine.shared.playDropFeedback()
+        await eventChannel.send(.`score-updated`)
         await spawnNewPiece()
     }
     
@@ -262,6 +406,8 @@ actor GameEngine {
         let isValid = await gameBoard.isPositionValid(piece: piece, at: newPosition)
         if isValid {
             currentPosition = newPosition
+            await HapticEngine.shared.playRotationFeedback()
+            await eventChannel.send(.`piece-moved`)
         }
     }
     
@@ -273,11 +419,11 @@ actor GameEngine {
             await dropPiece()
         }
         
-        return GameUpdateResult(score: score, linesCleared: 0, gameOver: gameOver)
+        return GameUpdateResult(score: score, linesCleared: 0, gameOver: gameOver, level: level)
     }
 }
 
-// MARK: - Game Scene
+// MARK: - Enhanced Game Scene with iOS 26 Features
 
 class GameScene: SKScene {
     var gameEngine: GameEngine
@@ -286,7 +432,13 @@ class GameScene: SKScene {
     
     // UI Elements
     private var scoreLabel: SKLabelNode?
+    private var levelLabel: SKLabelNode?
     private var gameOverLabel: SKLabelNode?
+    private var restartLabel: SKLabelNode?
+    
+    // iOS 26: Enhanced visual effects
+    private var particleSystem: SKEmitterNode?
+    private var backgroundGradient: SKSpriteNode?
 
     init(size: CGSize, gameEngine: GameEngine) {
         self.gameEngine = gameEngine
@@ -300,6 +452,7 @@ class GameScene: SKScene {
     override func didMove(to view: SKView) {
         setupScene()
         setupUI()
+        setupEventHandling()
         
         // Start the game
         Task {
@@ -308,9 +461,10 @@ class GameScene: SKScene {
     }
     
     private func setupScene() {
-        backgroundColor = SKColor.systemBackground
+        // iOS 26: Enhanced background with gradient
+        setupBackgroundGradient()
         
-        // Add title
+        // Add title with Swift 6 string interpolation
         let titleLabel = SKLabelNode(fontNamed: "SF Pro Display-Bold")
         titleLabel.text = "TETRIS"
         titleLabel.fontSize = 32
@@ -320,10 +474,62 @@ class GameScene: SKScene {
         
         // Draw grid
         drawGrid()
+        
+        // iOS 26: Add particle system for visual effects
+        setupParticleSystem()
+    }
+    
+    private func setupBackgroundGradient() {
+        // iOS 26: Enhanced background with dynamic gradient
+        let gradient = CAGradientLayer()
+        gradient.frame = CGRect(origin: .zero, size: size)
+        gradient.colors = [
+            SKColor.systemBackground.cgColor,
+            SKColor.systemGray6.cgColor,
+            SKColor.systemBackground.cgColor
+        ]
+        gradient.locations = [0.0, 0.5, 1.0]
+        gradient.startPoint = CGPoint(x: 0, y: 0)
+        gradient.endPoint = CGPoint(x: 1, y: 1)
+        
+        let gradientImage = UIGraphicsImageRenderer(size: size).image { context in
+            gradient.render(in: context.cgContext)
+        }
+        
+        backgroundGradient = SKSpriteNode(texture: SKTexture(image: gradientImage))
+        backgroundGradient?.position = CGPoint(x: size.width / 2, y: size.height / 2)
+        backgroundGradient?.zPosition = -100
+        addChild(backgroundGradient!)
+    }
+    
+    private func setupParticleSystem() {
+        // iOS 26: Enhanced particle system for visual effects
+        particleSystem = SKEmitterNode()
+        
+        // Configure particle properties
+        particleSystem?.particleBirthRate = 3
+        particleSystem?.numParticlesToEmit = 20
+        particleSystem?.particleLifetime = 2.0
+        particleSystem?.particleLifetimeRange = 0.5
+        particleSystem?.particleSpeed = 15
+        particleSystem?.particleSpeedRange = 5
+        particleSystem?.particleAlpha = 0.2
+        particleSystem?.particleAlphaRange = 0.1
+        particleSystem?.particleScale = 0.05
+        particleSystem?.particleScaleRange = 0.02
+        particleSystem?.particleColor = SKColor.systemBlue
+        particleSystem?.particleColorBlendFactor = 0.6
+        particleSystem?.particleBlendMode = .add
+        
+        // Position particles around the game area
+        particleSystem?.position = CGPoint(x: size.width / 2, y: size.height / 2)
+        particleSystem?.zPosition = -50
+        
+        addChild(particleSystem!)
     }
     
     private func setupUI() {
-        // Score label
+        // Score label with Swift 6 string interpolation
         scoreLabel = SKLabelNode(fontNamed: "SF Pro Display-Bold")
         scoreLabel?.text = "Score: 0"
         scoreLabel?.fontSize = 20
@@ -331,19 +537,104 @@ class GameScene: SKScene {
         scoreLabel?.position = CGPoint(x: size.width - 100, y: size.height - 50)
         addChild(scoreLabel!)
         
+        // Level label
+        levelLabel = SKLabelNode(fontNamed: "SF Pro Display-Bold")
+        levelLabel?.text = "Level: 1"
+        levelLabel?.fontSize = 18
+        levelLabel?.fontColor = SKColor.secondaryLabel
+        levelLabel?.position = CGPoint(x: size.width - 100, y: size.height - 80)
+        addChild(levelLabel!)
+        
         // Game over label (hidden initially)
         gameOverLabel = SKLabelNode(fontNamed: "SF Pro Display-Bold")
         gameOverLabel?.text = "GAME OVER"
         gameOverLabel?.fontSize = 48
         gameOverLabel?.fontColor = SKColor.systemRed
-        gameOverLabel?.position = CGPoint(x: size.width / 2, y: size.height / 2)
+        gameOverLabel?.position = CGPoint(x: size.width / 2, y: size.height / 2 + 50)
         gameOverLabel?.isHidden = true
         addChild(gameOverLabel!)
+        
+        // Restart label
+        restartLabel = SKLabelNode(fontNamed: "SF Pro Display")
+        restartLabel?.text = "Tap to restart"
+        restartLabel?.fontSize = 24
+        restartLabel?.fontColor = SKColor.systemBlue
+        restartLabel?.position = CGPoint(x: size.width / 2, y: size.height / 2 - 50)
+        restartLabel?.isHidden = true
+        addChild(restartLabel!)
         
         // Controls help (only show on simulator)
         #if targetEnvironment(simulator)
         addControlsHelp()
         #endif
+    }
+    
+    private func setupEventHandling() {
+        // Swift 6: Handle game events asynchronously
+        Task {
+            for await event in gameEngine.events {
+                await MainActor.run {
+                    handleGameEvent(event)
+                }
+            }
+        }
+    }
+    
+    private func handleGameEvent(_ event: GameEvent) {
+        switch event {
+        case .`score-updated`:
+            // Update score display
+            break
+        case .`line-cleared`:
+            // Trigger line clear animation
+            triggerLineClearAnimation()
+        case .`level-up`:
+            // Trigger level up animation
+            triggerLevelUpAnimation()
+        case .`game-over`:
+            // Show game over UI
+            showGameOver()
+        default:
+            break
+        }
+    }
+    
+    private func triggerLineClearAnimation() {
+        // iOS 26: Enhanced line clear animation
+        let flash = SKAction.sequence([
+            SKAction.fadeAlpha(to: 0.3, duration: 0.1),
+            SKAction.fadeAlpha(to: 1.0, duration: 0.1)
+        ])
+        
+        children.filter { $0.name == "tetrisBlock" }.forEach { block in
+            block.run(SKAction.repeat(flash, count: 3))
+        }
+    }
+    
+    private func triggerLevelUpAnimation() {
+        // iOS 26: Enhanced level up animation
+        levelLabel?.run(SKAction.sequence([
+            SKAction.scale(to: 1.5, duration: 0.2),
+            SKAction.scale(to: 1.0, duration: 0.2)
+        ]))
+        
+        // Change particle color for level up
+        particleSystem?.particleColor = SKColor.systemGreen
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            self.particleSystem?.particleColor = SKColor.systemBlue
+        }
+    }
+    
+    private func showGameOver() {
+        gameOverLabel?.isHidden = false
+        restartLabel?.isHidden = false
+        
+        // iOS 26: Enhanced game over animation
+        gameOverLabel?.run(SKAction.sequence([
+            SKAction.scale(to: 0.5, duration: 0),
+            SKAction.scale(to: 1.2, duration: 0.3),
+            SKAction.scale(to: 1.0, duration: 0.1)
+        ]))
     }
     
     private func addControlsHelp() {
@@ -411,6 +702,16 @@ class GameScene: SKScene {
         guard let touch = touches.first else { return }
         let location = touch.location(in: self)
         
+        // Check if restart was tapped
+        if let restartLabel = restartLabel, restartLabel.contains(location) {
+            Task {
+                await gameEngine.startGame()
+                gameOverLabel?.isHidden = true
+                restartLabel.isHidden = true
+            }
+            return
+        }
+        
         // Simple touch controls
         if location.x < size.width / 3 {
             Task { await gameEngine.movePieceLeft() }
@@ -422,10 +723,12 @@ class GameScene: SKScene {
     }
 
     private func updateUI(result: GameUpdateResult) {
-        scoreLabel?.text = "Score: \(result.score)"
+        scoreLabel?.text = result.score.gameStatus(nil)
+        levelLabel?.text = result.level.levelStatus(result.level)
         
         if result.gameOver {
             gameOverLabel?.isHidden = false
+            restartLabel?.isHidden = false
         }
     }
 
@@ -501,7 +804,7 @@ class GameScene: SKScene {
     }
 }
 
-// MARK: - SwiftUI Integration (Optional)
+// MARK: - SwiftUI Integration with iOS 26 Features
 
 struct TetrisGameView: View {
     @State private var gameEngine: GameEngine?

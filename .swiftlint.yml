@@ -1,34 +1,38 @@
-# SwiftLint Configuration for Hello Tetris iOS Project
+# SwiftLint Configuration for HelloTetris
 
-# Disable rules that are too strict for this project
-disabled_rules:
-  - trailing_whitespace
-  - line_length
-  - function_body_length
-  - type_body_length
-  - file_length
-  - cyclomatic_complexity
-  - large_tuple
-  - unused_import
-  - unused_private_declaration
-
-# Opt-in rules that are useful for this project
+# Basic rules for clean Swift code
 opt_in_rules:
   - empty_count
-  - force_unwrapping
-  - implicitly_unwrapped_optional
-  - overridden_super_call
-  - redundant_nil_coalescing
-  - sorted_imports
-  - vertical_whitespace
+  - trailing_newline
+  - comma_inheritance
+  - unused_import
 
-# Custom rule configurations
+disabled_rules:
+  - trailing_whitespace # Allow some flexibility for generated files
+  - line_length # SpriteKit nodes can have long method chains
+
+# Include/exclude patterns
+included:
+  - hellotetris/
+  - hellotetrisTests/
+
+excluded:
+  - build/
+  - .build/
+  - DerivedData/
+  - hellotetris.xcodeproj/
+  - "*.generated.swift"
+
+# Rule configurations
 line_length:
   warning: 120
-  error: 150
+  error: 200
+  ignores_function_declarations: true
+  ignores_comments: true
+  ignores_urls: true
 
 function_body_length:
-  warning: 50
+  warning: 60
   error: 100
 
 type_body_length:
@@ -37,27 +41,20 @@ type_body_length:
 
 file_length:
   warning: 500
-  error: 1000
+  error: 1500 # GameScene.swift is large due to complete Tetris implementation
 
-# Exclude certain files/directories
-excluded:
-  - Pods
-  - Carthage
-  - build
-  - DerivedData
-  - .build
-  - hellotetrisTests
-  - hellotetrisUITests
+large_tuple:
+  warning: 3
+  error: 4
 
-# Custom rules for this project
-custom_rules:
-  no_hardcoded_strings:
-    name: "No Hardcoded Strings"
-    regex: '"[^"]*"'
-    message: "Avoid hardcoded strings, use NSLocalizedString instead"
-    severity: warning
-    match_kinds:
-      - string_literal
+cyclomatic_complexity:
+  warning: 10
+  error: 20
 
-# Reporter configuration
-reporter: "github-actions-logging" 
+nesting:
+  type_level:
+    warning: 2
+    error: 3
+
+# Custom reporter for GitHub Actions
+reporter: "github-actions-logging"
